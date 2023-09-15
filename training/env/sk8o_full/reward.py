@@ -1,0 +1,188 @@
+import copy
+from enum import Enum
+from typing import Any, Dict, List, Optional, Tuple
+
+import hydra
+import mujoco
+import numpy as np
+from gymnasium import spaces
+from numpy.linalg import norm
+from omegaconf import OmegaConf
+from sk8o_sim import FullSimulation, FullSimulationData
+
+from ..common import TaskName
+
+
+class Reward:
+    """This class takes care of computing the rewards as needed."""
+
+    def __init__(
+        self,
+        task_cfg: OmegaConf,
+        task_name: str,
+        control_frequency: float,
+        evaluation: bool,
+    ):
+        """
+
+        Parameters
+        ----------
+        """
+        self.name = TaskName(task_name)
+
+        self.max_time = task_cfg.end_conditions.time
+        self.cost_cfg = task_cfg.cost
+        if evaluation:
+            # make evaluation scores per episode independent of control frequency
+            for k, _ in self.cost_cfg.items():
+                if k not in ["fall", "goal_reached"]:
+                    self.cost_cfg[k] *= 50 / control_frequency
+
+        self.end_conditions = task_cfg.end_conditions
+        self._last_too_large_error = 0
+        self.error_sum = None
+
+    def _pitch_cost(self, phi: float) -> float:
+        max_upright_cost = np.pi
+        return phi**2 * self.cost_cfg.phi / max_upright_cost
+
+    def _roll_cost(self, roll: float) -> float:
+        max_roll_cost = np.pi
+        return roll**2 * self.cost_cfg.roll / max_roll_cost
+
+    def _height_cost(self, h_L: float, h_R: float, h_ref: float) -> float:
+        max_height_error = 330e-3 - 120e-3
+        current_error_cost = self._scaled_error_norm(
+            np.mean([h_L, h_R]) - h_ref,
+            max_height_error,
+        )
+        # integral_error_cost = self._scaled_error_norm(self.height_sum, max_height_error)
+        return (
+            self.cost_cfg.height
+            * current_error_cost
+            # + self.cost_cfg.integral_height * integral_error_cost
+        )
+
+    def timeout(self, current_time: float) -> bool:
+        """Episode truncation.
+
+        Returns
+        -------
+        bool
+            True if episode truncated.
+        """
+        return self.max_time <= current_time
+
+    def _input_cost(self, action: np.ndarray) -> float:
+        max_input_cost = 2 * 2**2
+        hip_penalty = (
+            self.cost_cfg.hip_input * np.dot(action[:2], action[:2]) / max_input_cost
+        )
+        wheel_penalty = (
+            self.cost_cfg.wheel_input * np.dot(action[2:], action[2:]) / max_input_cost
+        )
+        return hip_penalty + wheel_penalty
+
+    def _scaled_error_norm(
+        self, error: np.ndarray, max_error: Optional[float] = 1
+    ) -> float:
+        """computes ||error||/max or ||error||^2/max^2, depending on the cost configuration
+
+        Parameters
+        ----------
+        error : np.ndarray
+            Reference error.
+        max_error : Optional[float], optional
+            Maximum possible error (for scaling), by default 1
+
+        Returns
+        -------
+        float
+            The result.
+        """
+        if self.cost_cfg.quadratic_errors:
+            return np.inner(error, error) / max_error**2
+        else:
+            return np.linalg.norm(error) / max_error
+
+    def _reference_cost(self, data: FullSimulationData) -> float:
+        max_reference_penalty = np.sqrt(8)
+        current_error_cost = self._scaled_error_norm(
+            self.reference_error(data), max_reference_penalty
+        )
+        return self.cost_cfg.error * current_error_cost
+
+    def reference_error(self, data: FullSimulationData) -> float:
+        vel_ref = np.array([data.dot_x_ref, data.dot_psi_ref])
+        return [data.dot_x, data.dot_psi] - vel_ref
+
+    def _goal_reached(self, data: FullSimulationData):
+        current_time = data.time
+        if self.name in (TaskName.GO_FORWARD, TaskName.MOTION_CONTROL):
+            close_enough = (
+                norm(self.reference_error(data)) < self.end_conditions.reference_error
+            )
+            if not close_enough:
+                self._last_too_large_error = current_time
+            # TODO: is it really not possible to solve with accelerations?
+            return (current_time - self._last_too_large_error) >= 1
+        else:
+            return False
+
+    def terminated(self, simulation: FullSimulation) -> bool:
+        return simulation.has_fallen() or self._goal_reached(simulation.get_data())
+
+    def truncated(self, current_time: float) -> bool:
+        return self.timeout(current_time)
+
+    def reset(
+        self,
+        reference: Optional[np.ndarray] = None,
+    ):
+        self._last_too_large_error = 0
+
+    def compute(
+        self,
+        action: np.ndarray,
+        simulation: FullSimulation,
+        data: FullSimulationData,
+        verbose: bool = False,
+    ) -> Tuple[float, bool, bool]:
+        """Computes the reward and decides whether the episode should end.
+
+        Parameters
+        ----------
+        action : np.ndarray
+            The action generated by the agent.
+        simulation : FullSimulation
+            The simulation.
+        data : FullSimulationData
+            Simulation data (to avoid their repeated construction).
+        verbose : bool, optional
+            Whether to print information to the console, by default False
+
+        Returns
+        -------
+        Tuple[float, bool, bool]
+            Tuple [reward, terminated, truncated]
+        """
+        costs = (
+            +self._input_cost(action)
+            + self._height_cost(data.h_L, data.h_R, data.h_ref)
+            + self.cost_cfg.step
+            + self._pitch_cost(data.phi)
+            + self._roll_cost(data.roll)
+        )
+        costs += simulation.has_fallen() * self.cost_cfg.fall
+        costs += (
+            self._reference_cost(data)
+            + self._goal_reached(data) * self.cost_cfg.goal_reached
+        )
+        if verbose:
+            print(
+                f"{self._pitch_cost(data.phi)=:.5f}\t{self.cost_cfg.step=:.5f}\t{self._height_cost()=:.5f}"
+            )
+            print(
+                f"{self._input_cost(action)=:.5f}\t{self.reference_error(data)=}\t{self._reference_cost(data)=:.5f}"
+            )
+        return -costs, self.terminated(simulation), self.truncated(data.time)

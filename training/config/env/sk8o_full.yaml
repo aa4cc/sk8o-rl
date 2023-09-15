@@ -1,0 +1,20 @@
+name: sk8o_full
+simulation:
+  initial_conditions:
+    leg_height: # sampled from normal distribution with these parameters
+      mean: 225e-3
+      variance: 20e-3
+    body_orientation: false
+  rendering:
+    # camera: side # [front,side,top,follower]
+    mode: rgb_array
+    window_height: 400 # ignored
+    window_width: 800 # ignored
+  hips_locked: false
+  use_noise: true
+  model_uncertainty_percent_std: 10
+  measurement_noise_std: [ 0.01, 0.05, 0.01, 0.01, 0.01, 0.01, 0.05, 0.05,0,0,0 ] 
+  perturbation_std: 0.1 # essentially process noise
+io:
+  obs_mode: segway+
+  action_mode: both

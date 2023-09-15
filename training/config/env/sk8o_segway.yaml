@@ -1,0 +1,23 @@
+name: sk8o_segway
+simulation:
+  measurement_noise_std: [ 0.01, 0.05, 0.01, 0.01, 0.01, 0.01 ] # TODO: maybe this should be a covariance matrix?
+  process_noise_std: [ 0.01, 0.05, 0.01, 0.01, 0.01, 0.01 ] # TODO: maybe this should be a covariance matrix?
+  model_uncertainty_percent_std: 10
+  phi0_std: 0 # variance of the zero point - to make it robust against this !! NOTE: it's actually the std, I was tired, sorry...
+  quantization: false # quantizes dot_x and dot_psi as they would be on the real robot
+  use_noise: true
+  timestep: 1e-3 # [s]
+  initial_conditions:
+    # sampled from normal distribution with these parameters
+    state_mean: [ 0, 0, 0, 0, 0, 0 ] # (ẋ,φ̇,ψ̇,x,φ,ψ)
+    state_std: [ 0.5, 0.25, 0.5, 0, 0.25, 0 ]
+    state_bounds: [ null, 0.25, null, null, 0.5, null ] # null -> no clip, float x -> clip to [-x,x] or tuple (x,y) -> clip to [x,y]
+
+    # uniform distribution
+    position_low: [ -3, -3, -3 ]
+    position_high: [ 3, 3, 3 ]
+  rendering:
+    mode: rgb_array
+    window_height: 400
+    window_width: 800
+

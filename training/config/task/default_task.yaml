@@ -1,0 +1,65 @@
+name: ???
+control_frequency: 50
+train:
+  cost:
+    fall: 0
+    goal_reached: 0
+    error: 0
+    integral_error: 0
+    height: 0 # used only in sk8o_full
+    integral_height: 0 # used only in sk8o_full
+    wheel_input: 0
+    hip_input: 0
+    step: 0
+    phi: 0
+    roll: 0
+    quadratic_errors: false
+  end_conditions:
+    phi: .inf  # used only in sk8o_segway
+    time: .inf
+    reference_error: 1e-2
+    reference_derivative: 5e-1
+  reference:
+    height_range: [120e-3, 330e-3]
+    forward_velocity_range: [0, 0]
+    angular_velocity_range: [0,0]
+eval:
+  cost:
+    fall: 0
+    goal_reached: 0
+    error: 0
+    integral_error: 0
+    height: 0 # used only in sk8o_full
+    integral_height: 0 # used only in sk8o_full
+    wheel_input: 0
+    hip_input: 0
+    step: 0
+    phi: 0
+    roll: 0
+    quadratic_errors: true
+  end_conditions:
+    phi: .inf  # used only in sk8o_segway
+    time: .inf
+    reference_error: 1e-2
+    reference_derivative: 5e-1
+  reference:
+    height_range: [120e-3, 330e-3]
+    forward_velocity_range: [0,0]
+    angular_velocity_range: [0,0]
+observability: ???  # what to include in the observation
+# - time
+# - dot_x
+# - dot_phi
+# - dot_psi
+# - phi
+# - x
+# - y
+# - psi
+# - x_ref
+# - y_ref
+# - psi_ref
+# - dot_x_ref
+# - dot_psi_ref
+# - dot_x_err_sum
+# - dot_psi_err_sum
+# - h_err_sum

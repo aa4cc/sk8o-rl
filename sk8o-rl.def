@@ -1,0 +1,21 @@
+BootStrap: library
+From: debian:latest
+
+%files
+    requirements.txt
+
+%environment
+    export MUJOCO_GL=osmesa # headless rendering of opengl
+
+%post
+    apt-get -y update
+    apt-get install -y python3.11
+    apt install -y python3.11-distutils
+    apt install -y curl
+    curl https://bootstrap.pypa.io/get-pip.py -o get-pip.py
+    python3.11 get-pip.py
+    pip install setuptools==65.5.0 
+    pip install autorom
+    AutoROM --accept-license
+    pip install -r requirements.txt --find-links https://download.pytorch.org/whl/torch_stable.html
+    apt-get install -y libgl1-mesa-glx libosmesa6

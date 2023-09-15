@@ -1,0 +1,41 @@
+defaults:
+  - _self_
+  - env: sk8o_segway
+  - task: motion_control
+  - algorithm: sac
+algorithm:
+frame_stacking:
+  stack_action: false
+  length: 1
+  use: true
+expert_trajectories: 0
+evaluation:
+  frequency: 20000
+  n_eval_episodes: 50
+optimizer:
+  name: adam
+  lr: 0.0003
+  total_timesteps: 2e6
+device: cpu
+n_envs: 1
+her: 
+  use: false
+  goal_selection_strategy: future
+  n_sampled_goal: 4
+pretrained_id: null # wandb experiment id, such as dominik-hodan/sk8o_full-balance/runs/9n0scdt5
+seed: 42
+learning_starts: 100
+render_training: false
+name: null
+group: null
+video:
+  folder: videos
+  fps: 25
+  frequency: 40000
+  max_len: 10 # [s]
+  slow_motion_factor: 2 # every frame is showed n-times as long (use '1' for real-time video)
+  use: true
+wandb: false
+hydra:
+  run:
+    dir: ./outputs/${env.name}/${task.name}/${now:%Y%m%d-%H%M%S.%f}

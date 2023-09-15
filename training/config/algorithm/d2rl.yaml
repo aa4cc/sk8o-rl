@@ -1,0 +1,9 @@
+batch_size: 256
+gamma: 0.99
+gradient_steps: 1
+name: d2rl
+policy:
+  name: d2rl
+  net_arch: [ 256, 256 ,256,256]
+target_entropy: auto
+tau: 0.005
